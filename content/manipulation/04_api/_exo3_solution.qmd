@@ -148,6 +148,7 @@ Represented on a map, this gives the following map:
 import folium
 from folium.plugins import MarkerCluster
 import geopandas as gpd
+import pandas as pd
 
 department_border = shp_communes.dissolve(by="INSEE_DEP")
 city_borders = shp_communes.copy()

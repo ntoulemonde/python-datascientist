@@ -95,8 +95,8 @@ while nb_obs > len(schools_dep31):
         response = requests.get(url_api_datagouv)
 
         # Concatenate the data from this call to previous data
-      page_data = pl.DataFrame(response.json()['records']).select('record').unnest('record').select('fields').unnest('fields').cast(pl.String)
-      schools_dep31 = pl.concat([schools_dep31, page_data])
+        page_data = pl.DataFrame(response.json()['records']).select('record').unnest('record').select('fields').unnest('fields').cast(pl.String)
+        schools_dep31 = pl.concat([schools_dep31, page_data])
         print(f'length of data is now {len(schools_dep31)}')
 
     except requests.exceptions.RequestException as e:
