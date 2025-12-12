@@ -12,7 +12,7 @@ import requests
 
 url_annuaire_education = "https://data.education.gouv.fr/api/explore/v2.1/catalog/datasets/fr-en-annuaire-education/records"
 
-school_q1_exo2 = pd.DataFrame(
+school_q1_exo2 = pl.DataFrame(
   requests
   .get(url_annuaire_education)
   .json()
@@ -36,7 +36,7 @@ url_31_limite10 = "https://data.education.gouv.fr/api/explore/v2.1/catalog/datas
 
 response_json = requests.get(url_31_limite10).json()
 
-school_q2_exo2 = pd.DataFrame(response_json.get("results"))
+school_q2_exo2 = pl.DataFrame(response_json.get("results"))
 school_q2_exo2.head()
 ```
 
@@ -70,7 +70,7 @@ By looking at the data metadata, we notice that a variable `total_count` gives u
 #| output: false
 #| label: exercise2-fetch-all
 import requests
-import pandas as pd
+import polars as pl
 
 # Initialize the initial API URL
 dep = '031'
@@ -81,7 +81,7 @@ url_api_datagouv = f'https://data.education.gouv.fr/api/v2/catalog/datasets/fr-e
 # First request to get total obs and first df
 response = requests.get(url_api_datagouv)
 nb_obs = response.json()['total_count']
-schools_dep31 = pd.json_normalize(response.json()['records'])
+schools_dep31 = pl.DataFrame(response.json()['records']).select('record').unnest('record').select('fields').unnest('fields').cast(pl.String)  # casting all columns to string to avoid errors when concatenating df
 
 # Loop on the nb of obs
 while nb_obs > len(schools_dep31):
@@ -95,19 +95,14 @@ while nb_obs > len(schools_dep31):
         response = requests.get(url_api_datagouv)
 
         # Concatenate the data from this call to previous data
-        page_data = pd.json_normalize(response.json()['records'])
-        schools_dep31 = pd.concat([schools_dep31, page_data], ignore_index=True)
+      page_data = pl.DataFrame(response.json()['records']).select('record').unnest('record').select('fields').unnest('fields').cast(pl.String)
+      schools_dep31 = pl.concat([schools_dep31, page_data])
         print(f'length of data is now {len(schools_dep31)}')
 
     except requests.exceptions.RequestException as e:
         print(f"An error occurred: {e}")
         break
 
-# Filter columns to keep only those starting with 'record.fields'
-schools_dep31 = schools_dep31.filter(regex='^record\\.fields\\..*')
-
-# Rename columns by removing 'record.fields.' at the beginning
-schools_dep31 = schools_dep31.rename(columns=lambda x: x.replace('record.fields.', ''))
 ```
 
 ::: {.content-visible when-profile="fr"}
@@ -124,6 +119,20 @@ The resulting _DataFrame_ is as follows:
 schools_dep31.head()
 ```
 
+
+::: {.content-visible when-profile="fr"}
+::: {.callout-note}
+On peut aussi utiliser le champ `next` renvoyé dans la requête pour obtenir les données suivantes. Ce champ est construit en incrémentant la variable `offset` selon la même logique.
+:::
+:::
+
+::: {.content-visible when-profile="en"}
+::: {.callout-note}
+We can also use the field `next` sent back by the API to directly get the link of the next call. This field is also built on `offset` increment.
+:::
+:::
+
+
 ::: {.content-visible when-profile="fr"}
 On peut fusionner ces nouvelles données avec nos données précédentes pour enrichir celles-ci. Pour faire une production fiable, il faudrait faire attention aux écoles qui ne s'apparient pas, mais ce n'est pas grave pour cette série d'exercices.
 :::
@@ -136,11 +145,16 @@ We can merge this new data with our previous dataset to enrich it. For reliable 
 ```{python}
 #| echo: true
 #| label: exercise2-bpe-enriched
-bpe_enriched = bpe.merge(
-  schools_dep31,
-  left_on = "SIRET",
-  right_on = "siren_siret"
+
+bpe_enriched = (
+    schools_dep31
+        .select(pl.col('code_commune'), pl.col('nom_commune'), pl.col('nom_etablissement'), pl.col('latitude'), pl.col('longitude'), pl.col('siren_siret'))
+        .join(bpe, left_on='siren_siret', right_on='SIRET', how='right')
+        .with_columns(
+            pl.col('adresse').str.strip_chars() 
+        )
 )
+
 bpe_enriched.head(2)
 ```
 
