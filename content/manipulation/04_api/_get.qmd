@@ -26,6 +26,7 @@ We will restrict our scope to primary, secondary, and higher education instituti
 #| echo: true
 #| label: read-bpe-parquet
 import duckdb
+import polars as pl
 
 query = """
 FROM read_parquet('https://minio.lab.sspcloud.fr/lgaliana/diffusion/BPE23.parquet')
